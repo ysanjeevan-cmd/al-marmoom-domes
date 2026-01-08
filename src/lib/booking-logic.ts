@@ -1,103 +1,102 @@
-import { startOfDay, addDays, isSameDay, isWithinInterval, parseISO } from "date-fns";
-import { BubbleBlockedDate, BubblePricing } from "./bubble";
+import { startOfDay, addDays, isSameDay, parseISO } from "date-fns";
+import { supabaseAdmin } from "./supabase";
 
 /**
- * Checks if a specific date is blocked.
- * Blocked if it exists in the ProductBlockedDate table.
+ * Checks if a specific date is blocked for a product or its add-ons.
  */
-export function isDateBlocked(
-    date: Date,
-    blockedDates: BubbleBlockedDate[]
-): boolean {
-    const dayStart = startOfDay(date);
+export async function getBlockedDates(productId: string): Promise<string[]> {
+    const { data, error } = await supabaseAdmin!
+        .from('blocked_dates')
+        .select('date')
+        .eq('product_id', productId);
 
-    // Use string comparison or date-fns comparison
-    return blockedDates.some(blocked => {
-        if (!blocked.date) return false;
-        // Bubble API returns Date strings usually, we need to handle that.
-        const blockedDate = typeof blocked.date === 'string' ? parseISO(blocked.date) : blocked.date;
-        return isSameDay(blockedDate, dayStart);
-    });
+    if (error) return [];
+    return data.map(d => d.date);
 }
 
 /**
- * Calculates total price for a stay.
- * Returns breakdown of daily rates.
+ * Checks inventory availability for a product over a date range.
  */
-export function calculateStayPrice(
-    checkIn: Date,
-    checkOut: Date,
-    pricingRules: BubblePricing[],
-    productId?: string
-): { total: number; breakdown: any[] } {
+export async function checkInventory(productId: string, startDate: string, endDate: string): Promise<boolean> {
+    const { data: availability, error } = await supabaseAdmin!
+        .from('product_availability')
+        .select('*')
+        .eq('product_id', productId)
+        .gte('date', startDate)
+        .lt('date', endDate);
 
-    // Logic for "Product" pricing (Per Stay / Per Package)
-    // The User stated: "priceBase which is the actual price of that product in the date range (datestart/dateEnd)".
-    if (productId) {
-        // Filter rules for this product
-        const productRules = pricingRules.filter(r => r.product === productId);
+    if (error) return false;
 
-        // Find the rule active on Check-In date
-        // We compare using "startOfDay" logic to be safe against timezones.
-        const checkInTime = startOfDay(checkIn).getTime();
+    // If any date in range is blocked or fully booked, return false
+    const isUnavailable = availability.some(day => day.is_blocked || (day.booked_count >= day.total_inventory));
 
-        const activeRule = productRules.find(r => {
-            if (!r.datestart || !r.dateEnd) return false;
+    return !isUnavailable;
+}
 
-            // Parse ISO strings from Bubble API
-            const ruleStart = startOfDay(parseISO(r.datestart)).getTime();
-            const ruleEnd = startOfDay(parseISO(r.dateEnd)).getTime();
+/**
+ * Calculates total price for a stay based on Supabase pricing rules.
+ */
+export async function calculatePricing(
+    productId: string,
+    checkIn: string, // YYYY-MM-DD
+    checkOut: string, // YYYY-MM-DD
+    guests: { adult: number, child: number, infant: number }
+) {
+    // Fetch all pricing rules for this product
+    const { data: rules, error } = await supabaseAdmin!
+        .from('pricing_rules')
+        .select('*')
+        .eq('product_id', productId)
+        .order('priority', { ascending: false });
 
-            // Logic: Is CheckIn within [Start, End)?
-            // Usually Rule 1: Aug 1 - Aug 31. Rule 2: Aug 31 - Sept 30.
-            // If I check in Aug 31, I usually fall into Rule 2? Or Rule 1?
-            // User data:
-            // Rule A: End Aug 30. 
-            // Rule B: Start Aug 31.
-            // There is a gap between 30th and 31st? Or just specific dates?
-            // Actually Rule A end: "2025-08-30T20:00:00.000Z" (Which is Aug 30th evening / Aug 31st morning local?)
-            // If the user says "datestart/dateEnd", likely Inclusive Start, Exclusive End for continuity.
-            // Let's rely on standard: checkIn >= start && checkIn < end.
-            // If strict gap (30th vs 31st), this works.
+    if (error || !rules) return { total: 0, breakdown: [] };
 
-            return checkInTime >= ruleStart && checkInTime < ruleEnd;
+    let total = 0;
+    const breakdown = [];
+    let currentDate = parseISO(checkIn);
+    const endDate = parseISO(checkOut);
+
+    // Loop through each day of the stay
+    while (currentDate < endDate) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+
+        // Find the matching rule for this specific day
+        // Priority logic: find first rule where date is within [start, end]
+        const activeRule = rules.find(rule => {
+            return dateStr >= rule.date_start && dateStr <= rule.date_end;
         });
 
         if (activeRule) {
-            return {
-                total: activeRule.priceBase,
-                breakdown: [{ date: checkIn, price: activeRule.priceBase, note: "Package Price" }]
-            };
+            const dayPrice =
+                (guests.adult * (Number(activeRule.price_adult) || 0)) +
+                (guests.child * (Number(activeRule.price_child) || 0)) +
+                (guests.infant * (Number(activeRule.price_infant) || 0));
+
+            total += dayPrice;
+            breakdown.push({
+                date: dateStr,
+                price: dayPrice,
+                rule: activeRule.id
+            });
+        } else {
+            console.warn(`No price rule for ${dateStr} on product ${productId}`);
         }
 
-        console.warn("No pricing rule found for product", productId, "on date", checkIn);
-        // Fallback: Return 0 or maybe try to match any rule? No, stricter is better.
-        return { total: 0, breakdown: [] };
-    }
-
-    // Fallback: Nightly Logic (Legacy, if no productId provided)
-    let total = 0;
-    const breakdown = [];
-    let current = startOfDay(checkIn);
-    const end = startOfDay(checkOut);
-
-    while (current < end) {
-        const checkTime = current.getTime();
-        const rule = pricingRules.find(r => {
-            if (!r.datestart || !r.dateEnd) return false;
-            const s = startOfDay(parseISO(r.datestart)).getTime();
-            const e = startOfDay(parseISO(r.dateEnd)).getTime();
-            return checkTime >= s && checkTime < e;
-        });
-
-        const nightlyRate = rule ? rule.priceBase : 0;
-        total += nightlyRate;
-        breakdown.push({
-            date: new Date(current),
-            price: nightlyRate
-        });
-        current = addDays(current, 1);
+        currentDate = addDays(currentDate, 1);
     }
 
     return { total, breakdown };
+}
+
+/**
+ * Fetches available add-ons for a product.
+ */
+export async function getAvailableAddons(productId: string) {
+    const { data: addons, error } = await supabaseAdmin!
+        .from('addons')
+        .select('*')
+        .contains('product_ids', [productId]);
+
+    if (error) return [];
+    return addons;
 }

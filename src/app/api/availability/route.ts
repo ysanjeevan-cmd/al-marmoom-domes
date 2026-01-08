@@ -1,32 +1,48 @@
-import { NextResponse } from "next/server";
-import { getBlockedDatesViaWorkflow } from "@/lib/bubble";
+import { NextResponse } from 'next/server';
+import { calculatePricing, checkInventory, getBlockedDates } from '@/lib/booking-logic';
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const productId = searchParams.get('productId');
+    const checkIn = searchParams.get('checkIn');
+    const checkOut = searchParams.get('checkOut');
+    const adults = parseInt(searchParams.get('adults') || '2');
+    const children = parseInt(searchParams.get('children') || '0');
+    const infants = parseInt(searchParams.get('infants') || '0');
+
+    if (!productId || !checkIn || !checkOut) {
+        return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+    }
+
     try {
-        const body = await request.json();
-        const { domeId, nights, checkIn } = body;
+        // 1. Check blocked dates
+        const blocked = await getBlockedDates(productId);
+        if (blocked.includes(checkIn)) {
+            return NextResponse.json({ available: false, reason: 'Date is blocked' });
+        }
 
-        // Call the Bubble Workflow
-        // We assume the workflow logic uses these params to find the correct product availability
-        // If your workflow relies on 'domeId' to determine product variants for nights, 
-        // passing 'nights' might not be standard bubble param unless you add it.
-        // For now, we forward what we have. 
+        // 2. Check inventory
+        const isAvailable = await checkInventory(productId, checkIn, checkOut);
+        if (!isAvailable) {
+            return NextResponse.json({ available: false, reason: 'No inventory available' });
+        }
 
-        // Note: The user's workflow initialized with: checkIn, checkOut, guests, domeId.
-        // We need to adhere to that contract.
+        // 3. Calculate pricing
+        const pricing = await calculatePricing(productId, checkIn, checkOut, {
+            adult: adults,
+            child: children,
+            infant: infants
+        });
 
-        const now = new Date();
-        const checkInDate = checkIn ? new Date(checkIn) : now;
-        const checkOutDate = new Date(checkInDate);
-        checkOutDate.setDate(checkOutDate.getDate() + (nights || 1));
-
-        // Using our existing library function which wraps the fetch
-        // We might need to adjust bubble.ts to accept these explicit params if not already generic
-        const blockedDates = await getBlockedDatesViaWorkflow(domeId, nights);
-
-        return NextResponse.json({ blocked_dates: blockedDates });
-    } catch (error) {
-        console.error("API Error:", error);
-        return NextResponse.json({ error: "Failed to fetch availability" }, { status: 500 });
+        return NextResponse.json({
+            available: true,
+            pricing: {
+                total: pricing.total,
+                breakdown: pricing.breakdown
+            }
+        });
+    } catch (error: any) {
+        console.error('Availability API Error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
