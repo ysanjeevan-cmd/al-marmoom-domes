@@ -3,25 +3,29 @@ import { ChevronRight } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Hero } from "@/components/home/Hero";
 import { BookingWidget } from "@/components/booking/BookingWidget";
-import { getPricing, getProducts, getAddons } from "@/lib/bubble";
+import { supabase } from "@/lib/supabase";
 
 export default async function Home() {
-  // Fetch data in parallel
-  // We prioritize fetching Catalog (Products/Addons) server-side for SEO and init speed
-  const [pricingRules, products, addons] = await Promise.all([
-    getPricing(),
-    getProducts(),
-    getAddons()
+  // Fetch data from Supabase
+  const [
+    { data: products },
+    { data: pricingRules },
+    { data: addons }
+  ] = await Promise.all([
+    supabase.from('products').select('*').order('rank', { ascending: true }),
+    supabase.from('pricing_rules').select('*'),
+    supabase.from('addons').select('*')
   ]);
 
   return (
     <main className="min-h-screen bg-background font-sans text-foreground selection:bg-primary/10">
       <Navbar />
       <Hero>
+        {/* Passing data to client widget */}
         <BookingWidget
-          pricingRules={pricingRules}
-          products={products}
-          addons={addons}
+          pricingRules={pricingRules || []}
+          products={products || []}
+          addons={addons || []}
           className="-mt-12"
         />
       </Hero>

@@ -1,19 +1,23 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { BookingWidget } from "@/components/booking/BookingWidget";
-import { getPricing, getProducts, getAddons } from "@/lib/bubble";
 import { FadeIn } from "@/components/ui/FadeIn";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 // Force dynamic rendering since we are fetching live data
 export const dynamic = 'force-dynamic';
 
 export default async function BookNowPage() {
-    // Fetch data in parallel
-    const [pricingRules, products, addons] = await Promise.all([
-        getPricing(),
-        getProducts(),
-        getAddons()
+    // Fetch data from Supabase
+    const [
+        { data: products },
+        { data: pricingRules },
+        { data: addons }
+    ] = await Promise.all([
+        supabase.from('products').select('*').order('rank', { ascending: true }),
+        supabase.from('pricing_rules').select('*'),
+        supabase.from('addons').select('*')
     ]);
 
     return (
@@ -34,9 +38,9 @@ export default async function BookNowPage() {
 
                 {/* Using className to override homepage margins if needed or just letting it flow */}
                 <BookingWidget
-                    pricingRules={pricingRules}
-                    products={products}
-                    addons={addons}
+                    pricingRules={pricingRules || []}
+                    products={products || []}
+                    addons={addons || []}
                     className="mt-0"
                 />
             </div>
