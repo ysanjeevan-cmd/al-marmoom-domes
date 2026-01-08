@@ -1,4 +1,4 @@
-import { startOfDay, addDays, isSameDay, parseISO } from "date-fns";
+import { startOfDay, addDays, isSameDay, parseISO, format } from "date-fns";
 import { supabaseAdmin } from "./supabase";
 
 /**
@@ -58,17 +58,18 @@ export async function calculatePricing(
 
     // Loop through each day of the stay
     while (currentDate < endDate) {
-        const dateStr = currentDate.toISOString().split('T')[0];
+        const dateStr = format(currentDate, "yyyy-MM-dd");
 
         // Find the matching rule for this specific day
-        // Priority logic: find first rule where date is within [start, end]
         const activeRule = rules.find(rule => {
             return dateStr >= rule.date_start && dateStr <= rule.date_end;
         });
 
         if (activeRule) {
+            // Note: Currently treating prices as Per Unit/Dome. 
+            // If you later need per-person pricing, check product.pricing_type here.
             const dayPrice =
-                (guests.adult * (Number(activeRule.price_adult) || 0)) +
+                (Number(activeRule.price_adult) || 0) +
                 (guests.child * (Number(activeRule.price_child) || 0)) +
                 (guests.infant * (Number(activeRule.price_infant) || 0));
 

@@ -79,6 +79,11 @@ export function BookingWidget({
 
     const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
 
+    // Reset addons when product changes to avoid invalid selections
+    useEffect(() => {
+        setSelectedAddons([]);
+    }, [selectedProductId]);
+
     // Fetch availability and pricing whenever selection changes
     useEffect(() => {
         if (!selectedProductId || !dateRange.from) {
@@ -116,8 +121,8 @@ export function BookingWidget({
     };
 
     // Addons price calculation (keeping it local for reactivity)
-    const addonsPricePerStay = selectedAddons.reduce((sum, addonName) => {
-        const addon = availableAddons.find(a => a.name === addonName);
+    const addonsPricePerStay = selectedAddons.reduce((sum, addonId) => {
+        const addon = availableAddons.find(a => a.id === addonId);
         return sum + (Number(addon?.price) || 0);
     }, 0);
 
@@ -131,11 +136,6 @@ export function BookingWidget({
         setIsBooking(true);
 
         try {
-            const addonIds = selectedAddons.map(name => {
-                const addon = availableAddons.find(a => a.name === name);
-                return addon?.id;
-            }).filter(Boolean);
-
             const payload = {
                 productId: selectedProductId,
                 nights: nights,
@@ -145,7 +145,7 @@ export function BookingWidget({
                 children: children,
                 infants: infants,
                 numberOfDomes: numberOfDomes,
-                addons: addonIds,
+                addons: selectedAddons,
                 pricing: {
                     subtotal: apiPricing?.total || 0,
                     addons: addonsPricePerStay,
@@ -273,12 +273,12 @@ export function BookingWidget({
                                     <div key={addon.id} className="flex items-center space-x-2">
                                         <Checkbox
                                             id={addon.id}
-                                            checked={selectedAddons.includes(addon.name)}
+                                            checked={selectedAddons.includes(addon.id)}
                                             onCheckedChange={(checked) => {
                                                 if (checked) {
-                                                    setSelectedAddons([...selectedAddons, addon.name]);
+                                                    setSelectedAddons([...selectedAddons, addon.id]);
                                                 } else {
-                                                    setSelectedAddons(selectedAddons.filter(n => n !== addon.name));
+                                                    setSelectedAddons(selectedAddons.filter(id => id !== addon.id));
                                                 }
                                             }}
                                         />
