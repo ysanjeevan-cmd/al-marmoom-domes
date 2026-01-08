@@ -1,11 +1,10 @@
-import { getBooking } from "@/lib/bubble";
+import { getBooking } from "@/lib/booking-logic";
 import { FadeIn } from "@/components/ui/FadeIn";
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import CheckoutPageClient from "@/components/booking/CheckoutPageClient";
-import { Button } from "@/components/ui/Button"; // Keep just in case 'Return Home' uses it, though Client handles form. 
-// Ah wait, "Return Home" is in the 404 block which IS here.
+import { Button } from "@/components/ui/Button";
 
 export default async function CheckoutPage({
     searchParams,

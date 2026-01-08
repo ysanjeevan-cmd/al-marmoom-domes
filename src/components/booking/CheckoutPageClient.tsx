@@ -36,8 +36,8 @@ export default function CheckoutPageClient({ booking }: { booking: any }) {
     // Safely parse dates inside the client component or pass strings?
     // Passed as prop from Server Component, they are strings basically if coming from Bubble JSON.
     // But better to handle parsing safely.
-    const checkIn = booking.checkIn ? parseISO(booking.checkIn) : null;
-    const checkOut = booking.checkOut ? parseISO(booking.checkOut) : null;
+    const checkIn = booking.check_in ? parseISO(booking.check_in) : null;
+    const checkOut = booking.check_out ? parseISO(booking.check_out) : null;
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
@@ -113,10 +113,10 @@ export default function CheckoutPageClient({ booking }: { booking: any }) {
                 <h2 className="text-xl font-bold mb-6">Booking Summary</h2>
 
                 <div className="flex gap-4 mb-6">
-                    <div className="w-24 h-24 bg-gray-200 rounded-xl bg-cover bg-center" style={{ backgroundImage: 'url(/hero.jpg)' }}></div>
+                    <div className="w-24 h-24 bg-gray-200 rounded-xl bg-cover bg-center" style={{ backgroundImage: `url(${booking.product?.cover_image || '/hero.jpg'})` }}></div>
                     <div>
-                        <h3 className="font-bold">Dome Stay</h3>
-                        <p className="text-sm text-muted">Guests: {booking.numberOfGuests || booking.guestsAdult}</p>
+                        <h3 className="font-bold">{booking.product?.name || 'Dome Stay'}</h3>
+                        <p className="text-sm text-muted">Guests: {booking.guests_adult + booking.guests_children + booking.guests_infants}</p>
                         <p className="text-sm text-muted">Nights: {booking.nights}</p>
                         <p className="text-sm text-muted mt-2">
                             Check-in: {checkIn ? format(checkIn, "EEE, dd MMM") : "-"}
@@ -130,8 +130,8 @@ export default function CheckoutPageClient({ booking }: { booking: any }) {
                 <div className="space-y-3 py-6 border-t border-gray-100">
                     <p className="text-sm font-medium text-muted uppercase tracking-wider mb-2">Price Breakdown</p>
                     <div className="flex justify-between text-sm">
-                        <span>{booking.numberOfDomes || 1} Dome(s) x {booking.nights} Nights</span>
-                        <span>AED {booking.priceTotal}</span>
+                        <span>{booking.number_of_domes || 1} Dome(s) x {booking.nights} Nights</span>
+                        <span>AED {booking.price_total}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                         <span>Taxes & Fees</span>
@@ -141,11 +141,11 @@ export default function CheckoutPageClient({ booking }: { booking: any }) {
 
                 <div className="flex justify-between items-center pt-6 border-t border-gray-100 mb-8">
                     <span className="font-bold text-lg">Total (AED)</span>
-                    <span className="font-bold text-2xl">AED {booking.priceTotal}</span>
+                    <span className="font-bold text-2xl">AED {booking.price_total}</span>
                 </div>
 
                 <CheckoutButton
-                    bookingId={booking._id}
+                    bookingId={booking.id}
                     email={formData.email}
                     disabled={!isValid}
                 />

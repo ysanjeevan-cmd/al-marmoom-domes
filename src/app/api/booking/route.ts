@@ -23,10 +23,10 @@ export async function POST(request: Request) {
         const { data: cart, error: cartError } = await supabaseAdmin!
             .from('carts')
             .insert({
-                status: 'paid', // Defaulting to paid for this migration bridge
+                status: 'unpaid',
                 customer_email: customer.email,
                 confirmation_code: Math.random().toString(36).substring(2, 8).toUpperCase(),
-                confirmation_sent: true
+                confirmation_sent: false
             })
             .select()
             .single();
@@ -45,6 +45,7 @@ export async function POST(request: Request) {
                 guests_adult: adults,
                 guests_children: children,
                 guests_infants: infants,
+                number_of_domes: body.numberOfDomes || 1,
                 customer_email: customer.email,
                 customer_first_name: customer.firstName,
                 customer_last_name: customer.lastName,
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
                 price_subtotal: pricing.subtotal,
                 price_total: pricing.total,
                 price_vat_amount: pricing.vat,
-                status: 'confirmed'
+                status: 'cart'
             })
             .select()
             .single();

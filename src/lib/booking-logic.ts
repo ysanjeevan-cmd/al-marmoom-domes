@@ -100,3 +100,24 @@ export async function getAvailableAddons(productId: string) {
     if (error) return [];
     return addons;
 }
+
+/**
+ * Fetches a single booking by ID with related cart and product info.
+ */
+export async function getBooking(bookingId: string) {
+    const { data: booking, error } = await supabaseAdmin!
+        .from('bookings')
+        .select(`
+            *,
+            product:products(*),
+            cart:carts(*)
+        `)
+        .eq('id', bookingId)
+        .single();
+
+    if (error) {
+        console.error('Error fetching booking:', error);
+        return null;
+    }
+    return booking;
+}

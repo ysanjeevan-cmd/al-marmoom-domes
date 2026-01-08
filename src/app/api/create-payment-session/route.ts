@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getBooking } from "@/lib/bubble";
+import { getBooking } from "@/lib/booking-logic";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
     apiVersion: "2025-12-15.clover",
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Booking ID is required" }, { status: 400 });
         }
 
-        // 1. Verify Booking details from Bubble (Security)
+        // 1. Verify Booking details from Supabase (Security)
         const booking = await getBooking(bookingId);
         if (!booking) {
             return NextResponse.json({ error: "Booking not found" }, { status: 404 });
@@ -25,17 +25,16 @@ export async function POST(request: Request) {
         // 2. Create Stripe Session
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ["card"],
-            customer_email: body.email, // Pass email to Stripe
+            customer_email: body.email,
             line_items: [
                 {
                     price_data: {
                         currency: "aed",
                         product_data: {
-                            name: "Dome Stay",
-                            description: `${booking.nights} Night(s) for ${booking.numberOfGuests || booking.guestsAdult} Guest(s)`,
-                            // images: ["..."] // Optional
+                            name: booking.product?.name || "Dome Stay",
+                            description: `${booking.nights} Night(s) for ${booking.guests_adult + booking.guests_children + booking.guests_infants} Guest(s)`,
                         },
-                        unit_amount: Math.round(booking.priceTotal * 100), // Stripe expects cents/fils
+                        unit_amount: Math.round(Number(booking.price_total) * 100),
                     },
                     quantity: 1,
                 },
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
             cancel_url: `${request.headers.get("origin")}/checkout?bookingId=${bookingId}`,
             metadata: {
                 bookingId: bookingId,
-                cart: booking.cart // Pass Cart ID from booking object
+                cartId: booking.cart_id
             },
         });
 
