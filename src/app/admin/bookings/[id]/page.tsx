@@ -3,8 +3,12 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, User, Package, Calendar, CreditCard, Clock, MapPin } from 'lucide-react';
 import Link from 'next/link';
 
-export default async function BookingDetailsPage({ params }: { params: { id: string } }) {
-    const { id } = params;
+export default async function BookingDetailsPage(props: { params: Promise<{ id: string }> }) {
+    const { id } = await props.params;
+
+    if (!id) {
+        notFound();
+    }
 
     // Fetch detailed booking info
     const { data: booking, error } = await supabaseAdmin!
@@ -19,6 +23,7 @@ export default async function BookingDetailsPage({ params }: { params: { id: str
         .single();
 
     if (error || !booking) {
+        console.error('Booking fetch error:', error);
         notFound();
     }
 
@@ -38,8 +43,8 @@ export default async function BookingDetailsPage({ params }: { params: { id: str
                             Booking {booking.cart?.confirmation_code || '---'}
                         </h1>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                    'bg-gray-100 text-gray-800'
+                            booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                'bg-gray-100 text-gray-800'
                             }`}>
                             {booking.status}
                         </span>
