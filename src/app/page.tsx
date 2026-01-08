@@ -10,11 +10,13 @@ export default async function Home() {
   const [
     { data: products },
     { data: pricingRules },
-    { data: addons }
+    { data: addons },
+    { data: blockedDates }
   ] = await Promise.all([
     supabase.from('products').select('*').order('rank', { ascending: true }),
     supabase.from('pricing_rules').select('*'),
-    supabase.from('addons').select('*')
+    supabase.from('addons').select('*'),
+    supabase.from('blocked_dates').select('*')
   ]);
 
   return (
@@ -26,6 +28,7 @@ export default async function Home() {
           pricingRules={pricingRules || []}
           products={products || []}
           addons={addons || []}
+          initialBlockedDates={blockedDates || []}
           className="-mt-12"
         />
       </Hero>

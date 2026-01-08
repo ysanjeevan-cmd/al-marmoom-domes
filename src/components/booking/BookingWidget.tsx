@@ -9,14 +9,13 @@ import { Popover } from "@/components/ui/Popover";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { format, isSameDay, startOfDay, parseISO } from "date-fns";
 import { useRouter } from "next/navigation";
-import { BubblePricing, BubbleProduct, BubbleAddon } from "@/lib/bubble";
-import { calculateStayPrice } from "@/lib/booking-logic";
 import { cn } from "@/lib/utils";
 
 interface BookingWidgetProps {
     pricingRules?: any[];
     products?: any[];
     addons?: any[];
+    initialBlockedDates?: any[];
     className?: string;
 }
 
@@ -24,8 +23,10 @@ export function BookingWidget({
     pricingRules = [],
     products = [],
     addons = [],
+    initialBlockedDates = [],
     className
 }: BookingWidgetProps) {
+    const router = useRouter();
     // Guest State
     const [adults, setAdults] = useState(2);
     const [children, setChildren] = useState(0);
@@ -56,7 +57,17 @@ export function BookingWidget({
     }, [products, selectedProductId]);
 
     const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+
+    // Initialize blocked dates from props
     const [blockedDates, setBlockedDates] = useState<Date[]>([]);
+
+    useEffect(() => {
+        if (initialBlockedDates.length > 0) {
+            const dates = initialBlockedDates.map(d => startOfDay(parseISO(d.date)));
+            setBlockedDates(dates);
+        }
+    }, [initialBlockedDates]);
+
     const [isLoadingDates, setIsLoadingDates] = useState(false);
     const [apiPricing, setApiPricing] = useState<{ total: number; breakdown: any[] } | null>(null);
 
@@ -114,7 +125,6 @@ export function BookingWidget({
 
     // Booking Logic
     const [isBooking, setIsBooking] = useState(false);
-    const router = useRouter();
 
     const handleBookNow = async () => {
         if (!dateRange.from || !selectedProductId) return;
@@ -186,10 +196,10 @@ export function BookingWidget({
                             value={selectedProductId}
                             onChange={(e) => {
                                 const pid = e.target.value;
-                                const product = products.find(p => p._id === pid);
+                                const product = products.find(p => p.id === pid);
                                 if (product) {
                                     setSelectedProductId(pid);
-                                    setNights(product.minStayNights);
+                                    setNights(product.min_stay_nights || 1);
 
                                     // Reset dates if duration changes to avoid invalid ranges
                                     setDateRange({ from: undefined, to: undefined });
